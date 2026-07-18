@@ -295,13 +295,17 @@
   const fileNameText = document.getElementById('fileNameText');
   const dropZone = document.getElementById('dropZone');
 
+  // Holds the actual File object regardless of how it was selected
+  let selectedFile = null;
+
   function setFile(file) {
     if (!file) return;
+    selectedFile = file;  // <-- store it here
     fileNameText.textContent = file.name;
     fileNameEl.classList.add('visible');
     uploadBtn.disabled = false;
     statusEl.className = '';
-    statusEl.style.display = 'none';
+    statusEl.textContent = '';
   }
 
   fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
@@ -328,7 +332,7 @@
   }
 
   uploadBtn.addEventListener('click', async () => {
-    const file = fileInput.files[0];
+    const file = selectedFile;  // <-- use stored file, not fileInput.files[0]
     if (!file) return;
 
     uploadBtn.disabled = true;
