@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PII Redaction Tool</title>
+  <meta name="description" content="Upload a .docx file to automatically detect and redact PII such as names, emails, phone numbers, and more." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f18;
+      --surface: #161929;
+      --surface2: #1e2236;
+      --border: rgba(255,255,255,0.08);
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --accent-glow: rgba(99,102,241,0.25);
+      --success: #22c55e;
+      --error: #ef4444;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background-image: radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.08) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 60%);
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: var(--accent-hover);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #e2e8f0 30%, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+    }
+
+    p.subtitle {
+      color: var(--muted);
+      margin-top: 0.6rem;
+      font-size: 0.95rem;
+      font-weight: 400;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    }
+
+    .drop-zone {
+      border: 2px dashed rgba(99,102,241,0.35);
+      border-radius: 0.875rem;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(99,102,241,0.04);
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.1);
+      box-shadow: 0 0 0 4px var(--accent-glow);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .drop-zone .label {
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .drop-zone .label strong {
+      color: var(--accent-hover);
+    }
+
+    .file-name {
+      margin-top: 1.25rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text);
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-name.visible { display: flex; }
+    .file-name .file-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .file-name .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    button#uploadBtn {
+      margin-top: 1.5rem;
+      width: 100%;
+      padding: 0.85rem 1.5rem;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      border: none;
+      border-radius: 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button#uploadBtn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 30px rgba(99,102,241,0.4);
+    }
+
+    button#uploadBtn:active:not(:disabled) { transform: translateY(0); }
+
+    button#uploadBtn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      display: none;
+      width: 1.1rem;
+      height: 1.1rem;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-inner { display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
+
+    #status {
+      margin-top: 1.25rem;
+      border-radius: 0.6rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      display: none;
+    }
+
+    #status.success {
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.3);
+      color: var(--success);
+      display: block;
+    }
+
+    #status.error {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--error);
+      display: block;
+    }
+
+    .pii-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 1.75rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .pii-tag {
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">🔒 Privacy Tool</div>
+  <h1>PII Redaction Tool</h1>
+  <p class="subtitle">Upload a document to automatically anonymize sensitive information</p>
+</header>
+
+<div class="card">
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".docx" />
+    <span class="drop-icon">📄</span>
+    <p class="label">
+      <strong>Click to upload</strong> or drag and drop<br />
+      <span style="font-size:0.8rem; margin-top:0.3rem; display:inline-block;">Supports .docx &nbsp;·&nbsp; Max 10MB</span>
+    </p>
+  </div>
+
+  <div class="file-name" id="fileName">
+    <span class="file-icon">📝</span>
+    <span class="name" id="fileNameText"></span>
+  </div>
+
+  <button id="uploadBtn" disabled>
+    <div class="btn-inner">
+      <div class="spinner" id="spinner"></div>
+      <span id="btnText">Upload &amp; Redact</span>
+    </div>
+  </button>
+
+  <div id="status"></div>
+
+  <div class="pii-badges">
+    <span class="pii-tag">👤 Names</span>
+    <span class="pii-tag">📧 Emails</span>
+    <span class="pii-tag">📞 Phones</span>
+    <span class="pii-tag">🏢 Companies</span>
+    <span class="pii-tag">📍 Addresses</span>
+    <span class="pii-tag">🔢 SSNs</span>
+    <span class="pii-tag">💳 Credit Cards</span>
+    <span class="pii-tag">🎂 Dates of Birth</span>
+    <span class="pii-tag">🌐 IP Addresses</span>
+  </div>
+</div>
+
+<footer>Redacted files are deleted from the server immediately after download.</footer>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btnText');
+  const statusEl = document.getElementById('status');
+  const fileNameEl = document.getElementById('fileName');
+  const fileNameText = document.getElementById('fileNameText');
+  const dropZone = document.getElementById('dropZone');
+
+  function setFile(file) {
+    if (!file) return;
+    fileNameText.textContent = file.name;
+    fileNameEl.classList.add('visible');
+    uploadBtn.disabled = false;
+    statusEl.className = '';
+    statusEl.style.display = 'none';
+  }
+
+  fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.docx')) {
+      setFile(file);
+    } else {
+      showStatus('error', 'Please drop a valid .docx file.');
+    }
+  });
+
+  function showStatus(type, msg) {
+    statusEl.className = type;
+    statusEl.textContent = msg;
+  }
+
+  uploadBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    uploadBtn.disabled = true;
+    spinner.style.display = 'block';
+    btnText.textContent = 'Redacting…';
+    statusEl.className = '';
+    statusEl.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/redact', { method: 'POST', body: formData });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || `Server error: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `redacted_${file.name}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      showStatus('success', '✅ Redaction complete! Your file has been downloaded.');
+    } catch (err) {
+      showStatus('error', '❌ ' + err.message);
+    } finally {
+      uploadBtn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent = 'Upload & Redact';
+    }
+  });
+</script>
+
+</body>
+</html>
